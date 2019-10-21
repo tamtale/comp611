@@ -144,14 +144,6 @@ Lemma nil_left_concat_ident :
     concat nil xs = xs.
 Proof. reflexivity. Qed.
 
-Lemma concat_assoc :
-  forall (A: Type) (xs ys zs: list A),
-    concat (concat xs ys) zs = concat xs (concat ys zs).
-Proof. induction xs as [|first_x rest_x IH].
-  + reflexivity.
-  + simpl. rewrite <- IH.
-Qed.
-
 
 Fixpoint flatten {A: Type} (xs: list (list A)): list A := 
   match xs with
@@ -186,7 +178,7 @@ induction xs as [|first_xs rest_xs IH].
       ++ simpl.
          rewrite -> IH.
          induction rest_rest_x as [| f_r_r_x r_r_r_x IH5].
-         +++ simpl. rewrite -> nil_right_concat_ident. simpl.
+         +++ simpl. rewrite -> nil_right_concat_ident. simpl. Admitted.
 
 Definition cons_simp {A: Type} (x: A) := cons x nil.
 
