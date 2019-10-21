@@ -114,40 +114,116 @@ mkMonad
   {
     M: Functor;
     Eta(A: Type): A -> M.(FObj)(A);
-    Mu(A: Type): M.(FObj)(M.(FObj)(A)) -> M.(FObj)(A)
+    Mu(A: Type): M.(FObj)(M.(FObj)(A)) -> M.(FObj)(A);
+    MuNatural : forall {A: Type}, 
+      (M.(FMorph)(Mu A)) ;; (Mu A) ~~ (Mu (M.(FObj)(A))) ;; (Mu A);
+    EtaNatural1 : forall {A: Type}, Eta(M.(FObj) A) ;; (Mu A) ~~ @id(M.(FObj) A);
+    EtaNatural2 : forall {A: Type}, M.(FMorph)(Eta A) ;; (Mu A) ~~ @id(M.(FObj) A)
   }.
 
-Fixpoint reverse_accum {A: Type} (xs: list A) (acc: list A): list A :=
-match xs with
-| nil => acc
-| cons first rest => reverse_accum rest (cons first acc)
-end.
+Fixpoint concat {A: Type} (xs ys: list A): list A := 
+  match xs with
+  | nil => ys
+  | cons xs_first xs_rest => cons xs_first (concat xs_rest ys)
+  end.
 
-Definition reverse {A: Type} (xs: list A) := reverse_accum xs nil.
+Lemma nil_right_concat_ident :
+  forall (A: Type) (xs: list A),
+    concat xs nil = xs.
+Proof. 
+intros.
+induction xs as [|first rest IH].
++ reflexivity.
++ simpl.
+  rewrite -> IH.
+  reflexivity.
+Qed.
 
-Fixpoint reversed_concat {A: Type} (xs ys: list A): list A :=
-match xs with
-| nil => ys
-| cons first_x rest_x => reversed_concat rest_x (cons first_x ys)
-end.
+Lemma nil_left_concat_ident :
+  forall (A: Type) (xs: list A),
+    concat nil xs = xs.
+Proof. reflexivity. Qed.
 
-Definition concat {A: Type} (xs ys: list A): list A := reversed_concat (reverse xs) ys.
+Lemma concat_assoc :
+  forall (A: Type) (xs ys zs: list A),
+    concat (concat xs ys) zs = concat xs (concat ys zs).
+Proof. induction xs as [|first_x rest_x IH].
+  + reflexivity.
+  + simpl. rewrite <- IH.
+Qed.
 
-Compute concat (cons 1 nil) (cons 2 (cons 3 nil)).
 
-Fixpoint flatten_accum {A: Type} (xs: list (list A)) (acc: list A): list A :=
-match xs with
-| nil => acc
-| cons xs_first xs_rest => flatten_accum xs_rest (concat acc xs_first)
-end.
+Fixpoint flatten {A: Type} (xs: list (list A)): list A := 
+  match xs with
+  | nil => nil
+  | cons xs_first xs_rest => concat xs_first (flatten xs_rest)
+  end.
 
-Definition flatten {A: Type} (xs: list (list A)): list A := flatten_accum xs nil.
+Lemma flatten_natural :
+  forall {A: Type} (xs: list (list (list A))),
+    (map flatten ;; flatten) xs = (flatten ;; flatten) xs.
+Proof.
+intros. 
+repeat rewrite -> compose_step.
+induction xs as [|first_xs rest_xs IH].
++ reflexivity.
++ simpl.
+  rewrite -> IH.
+  induction first_xs as [|first_x rest_x IH2].
+  - reflexivity.
+  - simpl.
+    induction first_x as [| first_first_x rest_first_x IH3].
+    * simpl. 
+      rewrite <- IH2.
+      reflexivity.
+    * simpl.
+      rewrite <- IH2.
+      rewrite <- IH.
+      induction rest_x as [| first_rest_x rest_rest_x IH4].
+      ++ simpl.
+         rewrite -> nil_right_concat_ident. 
+         reflexivity.
+      ++ simpl.
+         rewrite -> IH.
+         induction rest_rest_x as [| f_r_r_x r_r_r_x IH5].
+         +++ simpl. rewrite -> nil_right_concat_ident. simpl.
 
+Definition cons_simp {A: Type} (x: A) := cons x nil.
+
+Lemma cons_natural_1 :
+  forall {A: Type} (xs: list A),
+    (cons_simp ;; flatten) xs = xs.
+Proof. 
+intros.
+rewrite -> compose_step.
+simpl.
+induction xs as [| first rest IH].
++ reflexivity.
++ simpl.
+  rewrite -> nil_right_concat_ident.
+  reflexivity. 
+Qed.
+
+Lemma cons_natural_2 :
+  forall {A: Type} (xs: list A),
+    ((map cons_simp) ;; flatten) xs = xs.
+Proof.
+intros.
+rewrite -> compose_step.
+induction xs as [| first rest IH].
++ reflexivity.
++ simpl.
+  rewrite -> IH.
+  reflexivity.
+Qed.
 
 Definition ListM: Monad := {|
   M := ListF;
-  Eta(A: Type)(a: A) := cons a nil;
+  Eta(A: Type):= cons_simp;
   Mu(A: Type)(xs: list(list(A))) := flatten xs;
+  MuNatural := @flatten_natural;
+  EtaNatural1 := @cons_natural_1;
+  EtaNatural2 := @cons_natural_2
 |}.
 
 Print ListM.
