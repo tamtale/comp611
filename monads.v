@@ -176,7 +176,7 @@ induction xs as [|first_xs rest_xs IH].
   induction first_xs as [|first_x rest_x IH2].
   - reflexivity.
   - simpl.
-    induction first_x as [| first_first_x rest_first_x IH3].
+    destruct first_x as [| first_first_x rest_first_x].
     * simpl. 
       rewrite <- IH2.
       reflexivity.
@@ -235,4 +235,14 @@ Definition ListM: Monad := {|
   EtaNatural2 := @cons_natural_2
 |}.
 
-Print ListM.
+Record KleisliTriple: Type :=
+mkTriple {
+  T: Type -> Type;
+  Unit(A: Type): A -> T(A);
+  Bind(A B: Type): forall (f: A -> T(B)), T(A) -> T(B);
+  UnitReturn(A: Type): (Bind A A (Unit A)) ~~ @id(T A);
+  UnitComposeReturn(A B: Type): forall (f: A -> T(B)), 
+    Unit A ;; Bind A B f ~~ f;
+  LastOne(A B C: Type): forall (f: A -> T(B)) (g: B -> T(C)),
+    Bind A C (f ;; (Bind B C g)) ~~ (Bind A B f) ;; (Bind B C g)
+}.
