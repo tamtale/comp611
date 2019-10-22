@@ -151,6 +151,18 @@ Fixpoint flatten {A: Type} (xs: list (list A)): list A :=
   | cons xs_first xs_rest => concat xs_first (flatten xs_rest)
   end.
 
+Lemma concat_assoc:
+  forall {A: Type} (xs ys zs: list A),
+  concat xs (concat ys zs) = concat (concat xs ys) zs.
+Proof. induction xs as [| first_xs rest_xs IH].
+  + reflexivity.
+  + simpl. destruct ys as [| first_ys rest_ys].
+    - simpl. rewrite -> nil_right_concat_ident. reflexivity.
+    - simpl. destruct zs as [| first_zs rest_zs].
+      * simpl. repeat rewrite -> nil_right_concat_ident. reflexivity.
+      * rewrite <- IH. reflexivity.
+Qed.
+
 Lemma flatten_natural :
   forall {A: Type} (xs: list (list (list A))),
     (map flatten ;; flatten) xs = (flatten ;; flatten) xs.
@@ -171,14 +183,19 @@ induction xs as [|first_xs rest_xs IH].
     * simpl.
       rewrite <- IH2.
       rewrite <- IH.
-      induction rest_x as [| first_rest_x rest_rest_x IH4].
+      destruct rest_x as [| first_rest_x rest_rest_x].
       ++ simpl.
          rewrite -> nil_right_concat_ident. 
          reflexivity.
       ++ simpl.
          rewrite -> IH.
-         induction rest_rest_x as [| f_r_r_x r_r_r_x IH5].
-         +++ simpl. rewrite -> nil_right_concat_ident. simpl. Admitted.
+         destruct rest_rest_x as [| f_r_r_x r_r_r_x].
+         +++ simpl. 
+             rewrite -> nil_right_concat_ident.
+             rewrite -> concat_assoc.
+             reflexivity.
+        +++ simpl. repeat rewrite -> concat_assoc. reflexivity. 
+Qed.
 
 Definition cons_simp {A: Type} (x: A) := cons x nil.
 
