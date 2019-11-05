@@ -76,7 +76,7 @@ Fixpoint map {A B: Type} (f: A -> B) (l: list A) : list B :=
   end.
 
 Lemma map_id :
-  forall (A: Type), map (@id A) ~~ @id (list A).
+  forall {A: Type}, map (@id A) ~~ @id (list A).
 Proof.
 intros A a.
 induction a as [| first rest IH].
@@ -105,7 +105,7 @@ Qed.
 Definition ListF : Functor := {|
   FObj := list;
   FMorph := @map;
-  FId := map_id;
+  FId := @map_id;
   FCompose := @map_compose
 |}.
 
@@ -113,12 +113,12 @@ Record Monad: Type :=
 mkMonad
   {
     M: Functor;
-    Eta(A: Type): A -> M.(FObj)(A);
-    Mu(A: Type): M.(FObj)(M.(FObj)(A)) -> M.(FObj)(A);
+    Eta(A: Type): A -> FObj M A;
+    Mu(A: Type): FObj M (FObj M A) -> FObj M A;
     MuNatural : forall {A: Type}, 
-      (M.(FMorph)(Mu A)) ;; (Mu A) ~~ (Mu (M.(FObj)(A))) ;; (Mu A);
-    EtaNatural1 : forall {A: Type}, Eta(M.(FObj) A) ;; (Mu A) ~~ @id(M.(FObj) A);
-    EtaNatural2 : forall {A: Type}, M.(FMorph)(Eta A) ;; (Mu A) ~~ @id(M.(FObj) A)
+      (M.(FMorph)(Mu A)) ;; (Mu A) ~~ Mu (FObj M A) ;; (Mu A);
+    EtaNatural1 : forall {A: Type}, Eta(FObj M A) ;; (Mu A) ~~ @id(FObj M A);
+    EtaNatural2 : forall {A: Type}, FMorph M (Eta A) ;; (Mu A) ~~ @id(FObj M A)
   }.
 
 Fixpoint concat {A: Type} (xs ys: list A): list A := 
@@ -128,7 +128,7 @@ Fixpoint concat {A: Type} (xs ys: list A): list A :=
   end.
 
 Lemma nil_right_concat_ident :
-  forall (A: Type) (xs: list A),
+  forall {A: Type} (xs: list A),
     concat xs nil = xs.
 Proof. 
 intros.
@@ -137,10 +137,10 @@ induction xs as [|first rest IH].
 + simpl.
   rewrite -> IH.
   reflexivity.
-Qed.
+  Qed.
 
 Lemma nil_left_concat_ident :
-  forall (A: Type) (xs: list A),
+  forall {A: Type} (xs: list A),
     concat nil xs = xs.
 Proof. reflexivity. Qed.
 
@@ -239,10 +239,12 @@ Record KleisliTriple: Type :=
 mkTriple {
   T: Type -> Type;
   Unit(A: Type): A -> T(A);
-  Bind(A B: Type): forall (f: A -> T(B)), T(A) -> T(B);
-  UnitReturn(A: Type): (Bind A A (Unit A)) ~~ @id(T A);
+  Bind: forall {A B: Type} (f: A -> T(B)), T(A) -> T(B);
+  UnitReturn(A: Type): (Bind (Unit A)) ~~ @id(T A);
   UnitComposeReturn(A B: Type): forall (f: A -> T(B)), 
-    Unit A ;; Bind A B f ~~ f;
+    Unit A ;; Bind f ~~ f;
   LastOne(A B C: Type): forall (f: A -> T(B)) (g: B -> T(C)),
-    Bind A C (f ;; (Bind B C g)) ~~ (Bind A B f) ;; (Bind B C g)
+    Bind (f ;; (Bind g)) ~~ (Bind f) ;; (Bind g)
 }.
+
+Def
