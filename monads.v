@@ -243,7 +243,7 @@ mkTriple {
   UnitReturn(A: Type): (Bind (Unit A)) ~~ @id(T A);
   UnitComposeReturn(A B: Type): forall (f: A -> T(B)), 
     Unit A ;; Bind f ~~ f;
-  LastOne(A B C: Type): forall (f: A -> T(B)) (g: B -> T(C)),
+  BindProp(A B C: Type): forall (f: A -> T(B)) (g: B -> T(C)),
     Bind (f ;; (Bind g)) ~~ (Bind f) ;; (Bind g)
 }.
 
@@ -251,7 +251,7 @@ Definition fmorph_from_triple (kt: KleisliTriple) {A B: Type} (f: A -> B): (T kt
 (Bind kt) (f ;; @Unit kt B).
 
 
-Lemma fid_holds(kt: KleisliTriple): forall {A: Type}, @fmorph_from_triple kt A A id ~~ id.
+Lemma fid_from_triple(kt: KleisliTriple): forall {A: Type}, @fmorph_from_triple kt A A id ~~ id.
 Proof. 
 intros. 
 unfold fmorph_from_triple. 
@@ -270,38 +270,45 @@ cut (Bind kt (id ;; Unit kt A) ~~ Bind kt (Unit kt A)).
   reflexivity.
 Qed.
 
-Lemma fcompose_holds(kt: KleisliTriple): forall (A B C: Type) (f: A -> B) (g: B -> C),
+Lemma fcompose_from_triple(kt: KleisliTriple): forall (A B C: Type) (f: A -> B) (g: B -> C),
   fmorph_from_triple kt (f ;;g) ~~ fmorph_from_triple kt f ;; fmorph_from_triple kt g.
 Proof. 
 intros. 
 unfold fmorph_from_triple. 
 unfold equiv.
 intros.
-rewrite -> compose_step.
+rewrite <- BindProp. (* Not sure what do do after this.*)
+Admitted.
+
 
 Definition mu_from_triple (kt: KleisliTriple) {A: Type}: (T kt (T kt A)) -> T kt A :=
 Bind kt (@id (T kt A)).
 
-Definition triple_to_monad (kt: KleisliTriple): Monad = 
+Lemma mu_natural_from_triple (kt: KleisliTriple): forall (A: Type),
+  (fmorph_from_triple kt) (@mu_from_triple kt A) ;; mu_from_triple kt ~~ 
+  mu_from_triple kt ;; mu_from_triple kt.
+Proof. Admitted.
+
+
+Lemma eta_natural_from_triple_1 (kt: KleisliTriple): forall (A: Type),
+(@Unit kt (T kt A)) ;; mu_from_triple kt ~~ @id (T kt A).
+Proof. Admitted.
+
+Lemma eta_natural_from_triple_2 (kt: KleisliTriple): forall (A: Type),
+(fmorph_from_triple kt) (Unit kt A) ;; mu_from_triple kt ~~ id.
+Proof. Admitted.
+
+Definition triple_to_monad (kt: KleisliTriple): Monad := 
 mkMonad
   (mkFunctor 
     (T kt)
     (@fmorph_from_triple kt)
-    (@fid_holds kt)
-    (@fcompose_holds kt)
+    (@fid_from_triple kt)
+    (@fcompose_from_triple kt)
   )
   (Unit kt)
   (@mu_from_triple kt)
-
- .
-
-
-Definition bind_from_monad {A B: Type} (m: Monad) (f: A -> (FObj (M m) B)): (FObj (M m) A) -> (FObj (M m) B) :=
-FMorph (M m) f ;; Mu m.
-
-Definition monad_to_triple (m: Monad): KleisliTriple :=
-mkTriple 
-  (FObj (M m)) 
-  (Eta m)
-  (bind_from_monad m)
+  (@mu_natural_from_triple kt)
+  (@eta_natural_from_triple_1 kt)
+  (@eta_natural_from_triple_2 kt)
 .
