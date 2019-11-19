@@ -12,6 +12,9 @@ Definition equiv {A B: Type} (f g: A -> B) : Prop :=
 Notation "f ~~ g" := (equiv f g)
                      (at level 100, right associativity).
 
+Axiom func_extensionality: forall (A B:Type) (f g: A -> B),
+  (f ~~ g) -> f = g.
+
 Definition compose {A B C: Type} (f: A -> B) (g: B -> C) : A -> C :=
   fun (a: A) => g (f a).
 
@@ -48,6 +51,15 @@ Qed.
 Lemma compose_assoc :
   forall {A B C D: Type} (f: A -> B) (g: B -> C) (h: C -> D),
     (f;; g);; h ~~ f;; (g;; h).
+Proof.
+intros A B C D f g h a.
+repeat rewrite -> compose_step.
+reflexivity.
+Qed.
+
+Lemma compose_assoc_ext :
+  forall {A B C D: Type} (f: A -> B) (g: B -> C) (h: C -> D),
+    (f;; g);; h = f;; (g;; h).
 Proof.
 intros A B C D f g h a.
 repeat rewrite -> compose_step.
@@ -270,8 +282,6 @@ cut (Bind kt (id ;; Unit kt A) ~~ Bind kt (Unit kt A)).
   reflexivity.
 Qed.
 
-Axiom func_extensionality: forall (A B:Type) (f g: A -> B),
-  (f ~~ g) -> f = g.
 
 Lemma fcompose_from_triple(kt: KleisliTriple): forall (A B C: Type) (f: A -> B) (g: B -> C),
   fmorph_from_triple kt (f ;;g) ~~ fmorph_from_triple kt f ;; fmorph_from_triple kt g.
@@ -280,7 +290,7 @@ intros.
 unfold fmorph_from_triple. 
 unfold equiv.
 intros.
-rewrite <- BindProp. (* Not sure what do do after this.*)
+rewrite <- BindProp.
 cut (((f;; Unit kt B);; Bind kt (g;; Unit kt C)) = (f;; (Unit kt B;; Bind kt (g;; Unit kt C)))).
 + intros. 
   rewrite H.
@@ -348,23 +358,29 @@ Qed.
 
 Lemma eta_natural_from_triple_1 (kt: KleisliTriple): forall (A: Type),
 (@Unit kt (T kt A)) ;; mu_from_triple kt ~~ @id (T kt A).
-Proof. Admitted.
+Proof. intros. unfold mu_from_triple. apply UnitComposeReturn.
+Qed.
 
 Lemma eta_natural_from_triple_2 (kt: KleisliTriple): forall (A: Type),
 (fmorph_from_triple kt) (Unit kt A) ;; mu_from_triple kt ~~ id.
-Proof. Admitted.
+Proof. unfold fmorph_from_triple. unfold mu_from_triple.
+  unfold equiv.
+  intros.
+  cut ((Bind kt (Unit kt A;; Unit kt (T kt A));; Bind kt id) = Bind kt ((Unit kt A;; Unit kt (T kt A));; Bind kt id)).
+  + intros. rewrite H. 
+    cut (((Unit kt A;; Unit kt (T kt A));; Bind kt id) = (Unit kt A;; (Unit kt (T kt A);; Bind kt id))).
+    - intros. 
+      rewrite H0.  
+      cut ((Unit kt (T kt A);; Bind kt id) = id).
+      * intros. 
+        rewrite H1. 
+        cut ((Unit kt A;; id) = Unit kt A).
+        ++ intros. rewrite H2. rewrite UnitReturn. reflexivity.
+        ++ cut ((Unit kt A;; id) ~~ Unit kt A) .
+           -- intros. apply func_extensionality. apply H2.
+           -- apply compose_id_r.
+      * cut ((Unit kt (T kt A);; Bind kt id) ~~ id).
+        ++ intros. apply func_extensionality. apply H1.
+        ++ apply UnitComposeReturn.
+    - apply compose_assoc.
 
-Definition triple_to_monad (kt: KleisliTriple): Monad := 
-mkMonad
-  (mkFunctor 
-    (T kt)
-    (@fmorph_from_triple kt)
-    (@fid_from_triple kt)
-    (@fcompose_from_triple kt)
-  )
-  (Unit kt)
-  (@mu_from_triple kt)
-  (@mu_natural_from_triple kt)
-  (@eta_natural_from_triple_1 kt)
-  (@eta_natural_from_triple_2 kt)
-.
