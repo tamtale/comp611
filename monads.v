@@ -59,9 +59,9 @@ Qed.
 
 Lemma compose_assoc_ext :
   forall {A B C D: Type} (f: A -> B) (g: B -> C) (h: C -> D),
-    (f;; g);; h = f;; (g;; h).
+    ((f;; g);; h) = (f;; (g;; h)).
 Proof.
-intros A B C D f g h a.
+intros.
 repeat rewrite -> compose_step.
 reflexivity.
 Qed.
@@ -125,12 +125,12 @@ Record Monad: Type :=
 mkMonad
   {
     M: Functor;
-    Eta(A: Type): A -> FObj M A;
+    Eta{A: Type}: A -> FObj M A;
     Mu: forall {A: Type}, FObj M (FObj M A) -> FObj M A;
     MuNatural : forall {A: Type}, 
       FMorph M (@Mu A) ;; Mu ~~ Mu ;; Mu;
-    EtaNatural1 : forall {A: Type}, Eta(FObj M A) ;; Mu ~~ @id(FObj M A);
-    EtaNatural2 : forall {A: Type}, FMorph M (Eta A) ;; (Mu) ~~ @id(FObj M A)
+    EtaNatural1 : forall {A: Type}, @Eta(FObj M A) ;; Mu ~~ @id(FObj M A);
+    EtaNatural2 : forall {A: Type}, FMorph M (@Eta A) ;; (Mu) ~~ @id(FObj M A)
   }.
 
 Fixpoint concat {A: Type} (xs ys: list A): list A := 
@@ -256,7 +256,8 @@ mkTriple {
   UnitComposeReturn(A B: Type): forall (f: A -> T(B)), 
     Unit A ;; Bind f ~~ f;
   BindProp(A B C: Type): forall (f: A -> T(B)) (g: B -> T(C)),
-    Bind (f ;; (Bind g)) ~~ (Bind f) ;; (Bind g)
+    Bind (f ;; (Bind g)) ~~ (Bind f) ;; (Bind g);
+  Mult{A: Type}: T(T(A)) -> T(A) := Bind (@id (T A))
 }.
 
 Definition fmorph_from_triple (kt: KleisliTriple) {A B: Type} (f: A -> B): (T kt A -> T kt B) :=
@@ -314,18 +315,18 @@ Lemma mu_natural_from_triple (kt: KleisliTriple): forall (A: Type),
   (fmorph_from_triple kt) (@mu_from_triple kt A) ;; mu_from_triple kt ~~ 
   mu_from_triple kt ;; mu_from_triple kt.
 Proof. 
-intros.
-unfold fmorph_from_triple.
-unfold mu_from_triple.
-unfold equiv.
-intros.
-rewrite <- BindProp.
-cut (((Bind kt id;; Unit kt (T kt A));; Bind kt id) = (Bind kt id;; (Unit kt (T kt A);; Bind kt id))).
-+ intros.
-  rewrite -> H.
-  repeat rewrite -> compose_step.
-  cut ((Unit kt (T kt A);; Bind kt id) = id).
-  - intros H0.
+  intros.
+  unfold fmorph_from_triple.
+  unfold mu_from_triple.
+  unfold equiv.
+  intros.
+  rewrite <- BindProp.
+  cut (((Bind kt id;; Unit kt (T kt A));; Bind kt id) = (Bind kt id;; (Unit kt (T kt A);; Bind kt id))).
+  + intros.
+    rewrite -> H.
+    repeat rewrite -> compose_step.
+    cut ((Unit kt (T kt A);; Bind kt id) = id).
+    - intros H0.
     rewrite H0. 
     cut ((@Bind kt (T kt (T kt A)) A (Bind kt id;; id)) ~~ (Bind kt id ;; Bind kt id)).
     * intros.
@@ -351,7 +352,7 @@ cut (((Bind kt id;; Unit kt (T kt A));; Bind kt id) = (Bind kt id;; (Unit kt (T 
           cut (forall b: T kt A, Bind kt (Unit kt A) b = id b).
           -- intros. apply H0.
           -- intros. apply UnitReturn.
-+ cut (((Bind kt id;; Unit kt (T kt A));; Bind kt id) ~~(Bind kt id;; Unit kt (T kt A);; Bind kt id)).
+  + cut (((Bind kt id;; Unit kt (T kt A));; Bind kt id) ~~(Bind kt id;; Unit kt (T kt A);; Bind kt id)).
   - intros. apply func_extensionality. apply H.
   - apply compose_assoc.
 Qed.
@@ -382,5 +383,73 @@ Proof. unfold fmorph_from_triple. unfold mu_from_triple.
       * cut ((Unit kt (T kt A);; Bind kt id) ~~ id).
         ++ intros. apply func_extensionality. apply H1.
         ++ apply UnitComposeReturn.
-    - apply compose_assoc.
+    - apply compose_assoc_ext.
+  + cut ((Bind kt (Unit kt A;; Unit kt (T kt A));; Bind kt id) ~~ Bind kt ((Unit kt A;; Unit kt (T kt A));; Bind kt id)).
+    - intros. apply func_extensionality. apply H.
+    - remember (Unit kt A;; Unit kt (T kt A)) as f.
+      remember id as g.
+      unfold equiv. symmetry. apply BindProp.
+Qed.
+
+(*Definitions for Ringads.*)
+
+Class MZero `(m: Monad) : Type := {
+  Zero{A: Type}: FObj (M m) A;
+  MuDistributesZero: forall {A: Type}, Mu m (@Zero (FObj (M m) A)) = Zero
+}.
+Class MPlus `(m: Monad): Type := {
+  Plus{A: Type}: FObj (M m) A -> FObj (M m) A -> FObj (M m) A; 
+  MuDistributesPlus: forall {A: Type} (x y: FObj (M m) (FObj (M m) A)), Mu m (Plus x y) = Plus (Mu m x) (Mu m y)
+}.
+
+Class Ringad `(m: Monad, mzero: MZero(m), mplus: MPlus(m)): Type := {
+  MZeroUnit: forall {A: Type} (xs: FObj (M m) A), 
+    (Plus xs Zero = xs) /\ (Plus Zero xs = xs)
+}.
+
+Lemma flatten_nil: forall (A: Type), Mu ListM (@nil (list A)) = @nil A.
+Proof. intuition. Qed.
+
+Instance listZero: MZero(ListM):= {
+  Zero{A: Type} := @nil A;
+  MuDistributesZero := flatten_nil
+}.
+
+
+Lemma flatten_distributes_concat: forall (A : Type) (xs ys : FObj (M ListM) (FObj (M ListM) A)),
+Mu ListM (concat xs ys) = concat (Mu ListM xs) (Mu ListM ys).
+Proof. 
+intros. simpl. 
+induction xs as [| first_xs rest_xs IH].
+  + reflexivity.
+  + induction ys as [| first_ys rest_ys IH2].
+    - simpl. 
+      repeat rewrite -> nil_right_concat_ident.
+      reflexivity.
+    - simpl. 
+      rewrite -> concat_assoc. 
+      induction first_xs as [|first_first_xs rest_first_xs IH3].
+        * repeat rewrite -> nil_left_concat_ident. 
+          rewrite <- concat_assoc.
+          induction rest_xs as [|first_rest_xs rest_rest_xs IH4].
+          ++ simpl. reflexivity.
+          ++ induction first_ys as [|first_first_ys rest_first_ys IH5].
+          Admitted. (* Do this later. *)
+
+Instance listConcat: MPlus ListM := {
+  Plus{A: Type} := @concat A;
+  MuDistributesPlus := flatten_distributes_concat
+}.
+
+
+Lemma nil_concat_ident : forall (A : Type) (xs : FObj (M ListM) A),
+Plus xs Zero = xs /\ Plus Zero xs = xs.
+Proof. simpl. split.
++ apply nil_right_concat_ident.
++ apply nil_left_concat_ident.
+Qed.
+
+Instance list_ringad: Ringad ListM listZero listConcat := {
+  MZeroUnit:= nil_concat_ident
+}.
 
