@@ -397,6 +397,7 @@ Class MZero `(m: Monad) : Type := {
   Zero{A: Type}: FObj (M m) A;
   MuDistributesZero: forall {A: Type}, Mu m (@Zero (FObj (M m) A)) = Zero
 }.
+
 Class MPlus `(m: Monad): Type := {
   Plus{A: Type}: FObj (M m) A -> FObj (M m) A -> FObj (M m) A; 
   MuDistributesPlus: forall {A: Type} (x y: FObj (M m) (FObj (M m) A)), Mu m (Plus x y) = Plus (Mu m x) (Mu m y)
@@ -452,4 +453,83 @@ Qed.
 Instance list_ringad: Ringad ListM listZero listConcat := {
   MZeroUnit:= nil_concat_ident
 }.
+
+Import Nat.
+
+(*type A with linear order*)
+Inductive Sorted : list nat -> Prop :=
+  | Sorted_nil : Sorted nil
+  | Sorted_cons_1 a : Sorted (cons a nil)
+  | Sorted_cons_n a b l :
+      Sorted (cons b l) -> a <= b -> Sorted (cons a (cons b l)).
+
+Lemma inversion_sorted: forall (xs: list nat),
+Sorted xs -> 
+xs = nil \/ 
+(exists single_x, xs = cons single_x nil) \/
+exists a b l, Sorted (cons b l) /\ a <= b /\ xs = cons a (cons b l).
+Proof. intros. destruct H.
++ left. reflexivity.
++ right. left. exists a. reflexivity.
++ right. right. exists a, b, l. split. 
+  - apply H.
+  - split.
+    * apply H0.
+    * reflexivity.
+Qed.
+
+Lemma inversion_sorted_2: forall (a b: nat) (l: list nat),
+Sorted (cons a (cons b l)) -> a <= b.
+Proof. 
+Admitted.
+
+Fixpoint mergeNat (xs ys: list nat): list nat := 
+  let fix merge_help ys :=
+  match xs, ys with
+  | nil, _ => ys
+  | _, nil => xs
+  | cons first_xs rest_xs, cons first_ys rest_ys =>
+    if first_xs <=? first_ys then cons first_xs (mergeNat rest_xs ys)
+    else cons first_ys (merge_help rest_ys)
+    end
+   in merge_help ys.
+
+Require Import Coq.Arith.Compare_dec.
+Lemma merge_sorted_lists: forall (xs ys: list nat),
+Sorted xs -> Sorted ys -> Sorted (mergeNat xs ys).
+Proof. induction xs, ys.
++ intros. apply H.
++ intros. apply H.
++ intros. apply H. 
+(*
++ intros. simpl. remember (a <=? n) as b. destruct b.
+  - cut (Sorted (mergeNat xs (cons n ys))).
+    * destruct xs.
+      ++ intros. simpl. apply Sorted_cons_n.
+        -- apply H.
+        -- apply leb_complete. symmetry. apply Heqb.
+      ++ intros. simpl. remember (n0 <=? n) as b1. destruct b1.
+        -- destruct xs.
+          ** simpl. apply Sorted_cons_n.
+             +++ apply Sorted_cons_n.
+                 apply H. apply leb_complete. symmetry. apply Heqb1.
+             +++ destruct H.
+                 apply inversion_sorted_2 in H.
+                 apply H.
+          ** apply Sorted_cons_n.
+             +++ simpl. remember (n1 <=? n) as b2. destruct b2.
+                 --- apply Sorted_cons_n.
+                    *** destruct xs.
+                      ++++ simpl.
+                           apply Sorted_cons_n. 
+                           apply H.
+                           apply leb_complete.
+                           symmetry.
+                           apply Heqb2.
+                      ++++ simpl. remember (n2 <=? n) as b3. destruct b3.
+                           ---- apply Sorted_cons_n.
+                              **** Admitted.
+ *)
+
+
 
